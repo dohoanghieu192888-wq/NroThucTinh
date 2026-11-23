@@ -10,7 +10,9 @@ permissions:
 
 jobs:
   build-ipa:
-    runs-on: macos-14
+    # NOTE: macos-14 (arm64) is not available for this account ("configuration not supported").
+    # macos-15 is the arm64 image that works and matches the deploy_arm64 IL2CPP toolchain.
+    runs-on: macos-15
     timeout-minutes: 120
 
     env:
@@ -18,29 +20,35 @@ jobs:
       APP_NAME: NroThcTnh
 
     steps:
-      - name: Checkout (with Git LFS)
+      - name: Checkout (LFS pointers only)
         uses: actions/checkout@v4
         with:
-          lfs: true
+          lfs: false
 
-      - name: Verify LFS objects
+      - name: Restore Git LFS object cache
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs/objects
+          key: lfs-objects-${{ hashFiles('.gitattributes') }}
+
+      - name: Fetch LFS objects
         run: |
+          git lfs install --local
           git lfs pull
-          git lfs ls-files --size | tail -n 12
+          git lfs ls-files --size | tail -n 5
           test -s Libraries/libiPhone-lib.a
           test -s Libraries/libil2cpp.a
 
       - name: Show toolchain
         run: |
+          uname -m
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
-          uname -m
 
       - name: Restore executable bits (IL2CPP toolchain)
         run: |
           chmod +x Il2CppOutputProject/IL2CPP/build/deploy_arm64/il2cpp || true
           chmod +x Il2CppOutputProject/IL2CPP/build/deploy_arm64/bee_backend/mac-arm64/bee_backend || true
-          chmod +x Il2CppOutputProject/IL2CPP/build/deploy_x86_64/il2cpp || true
           chmod +x process_symbols.sh || true
 
       - name: Build (unsigned, arm64)
@@ -60,7 +68,7 @@ jobs:
             ENABLE_BITCODE=NO \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=NO \
-            build | tee "$RUNNER_TEMP/xcodebuild.log"
+            build 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
 
       - name: Package .ipa
         run: |
