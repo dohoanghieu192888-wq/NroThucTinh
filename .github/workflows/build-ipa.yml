@@ -46,7 +46,6 @@ jobs:
       - name: Build (unsigned, arm64)
         run: |
           set -o pipefail
-          echo "LOG=$RUNNER_TEMP/xcodebuild.log" >> "$GITHUB_ENV"
           xcodebuild \
             -project Unity-iPhone.xcodeproj \
             -scheme "$SCHEME" \
@@ -74,17 +73,16 @@ jobs:
           rm -rf "$STAGE"
           mkdir -p "$STAGE/Payload"
           cp -R "$APP" "$STAGE/Payload/"
-          # Unsigned apps are not allowed in an .ipa normally; ditto keeps the bundle intact.
           IPA="$RUNNER_TEMP/${APP_NAME}-unsigned.ipa"
           ( cd "$STAGE" && /usr/bin/zip -qry "$IPA" Payload )
           ls -lh "$IPA"
-          echo "IPA=$IPA" >> "$GITHUB_ENV"
+          /usr/bin/unzip -l "$IPA" | head -n 5
 
       - name: Upload .ipa
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-unsigned-ipa
-          path: ${{ env.IPA }}
+          path: ${{ runner.temp }}/${{ env.APP_NAME }}-unsigned.ipa
           if-no-files-found: error
 
       - name: Upload build log
@@ -92,5 +90,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xcodebuild-log
-          path: ${{ env.LOG }}
+          path: ${{ runner.temp }}/xcodebuild.log
           if-no-files-found: ignore
