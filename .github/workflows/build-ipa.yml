@@ -1,0 +1,96 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa:
+    runs-on: macos-14
+    timeout-minutes: 120
+
+    env:
+      SCHEME: Unity-iPhone
+      APP_NAME: NroThcTnh
+
+    steps:
+      - name: Checkout (with Git LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Verify LFS objects
+        run: |
+          git lfs pull
+          git lfs ls-files --size | tail -n 12
+          test -s Libraries/libiPhone-lib.a
+          test -s Libraries/libil2cpp.a
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          uname -m
+
+      - name: Restore executable bits (IL2CPP toolchain)
+        run: |
+          chmod +x Il2CppOutputProject/IL2CPP/build/deploy_arm64/il2cpp || true
+          chmod +x Il2CppOutputProject/IL2CPP/build/deploy_arm64/bee_backend/mac-arm64/bee_backend || true
+          chmod +x Il2CppOutputProject/IL2CPP/build/deploy_x86_64/il2cpp || true
+          chmod +x process_symbols.sh || true
+
+      - name: Build (unsigned, arm64)
+        run: |
+          set -o pipefail
+          echo "LOG=$RUNNER_TEMP/xcodebuild.log" >> "$GITHUB_ENV"
+          xcodebuild \
+            -project Unity-iPhone.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            ENABLE_BITCODE=NO \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            build | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: Package .ipa
+        run: |
+          set -euo pipefail
+          PRODUCTS="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos"
+          APP=$(find "$PRODUCTS" -maxdepth 1 -name '*.app' -print -quit)
+          echo "App: $APP"
+          test -n "$APP"
+          STAGE="$RUNNER_TEMP/stage"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/Payload"
+          cp -R "$APP" "$STAGE/Payload/"
+          # Unsigned apps are not allowed in an .ipa normally; ditto keeps the bundle intact.
+          IPA="$RUNNER_TEMP/${APP_NAME}-unsigned.ipa"
+          ( cd "$STAGE" && /usr/bin/zip -qry "$IPA" Payload )
+          ls -lh "$IPA"
+          echo "IPA=$IPA" >> "$GITHUB_ENV"
+
+      - name: Upload .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-unsigned-ipa
+          path: ${{ env.IPA }}
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ${{ env.LOG }}
+          if-no-files-found: ignore

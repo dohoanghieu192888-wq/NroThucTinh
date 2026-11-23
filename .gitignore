@@ -1,0 +1,17 @@
+# macOS / Xcode
+.DS_Store
+**/xcuserdata/
+*.xcuserstate
+/DerivedData/
+/build/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+
+# Editors
+.vs/
+.idea/
+*.user
+
+# Local CI scratch
+out/

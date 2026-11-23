@@ -1,0 +1,9 @@
+# Unity iOS Xcode export: keep every file byte-for-byte (mixed text/binary assets).
+* -text
+
+# Git LFS — GitHub rejects any blob larger than 100 MB.
+Libraries/*.a                                  filter=lfs diff=lfs merge=lfs -text
+Data/*.assets                                 filter=lfs diff=lfs merge=lfs -text
+Data/*.resS                                   filter=lfs diff=lfs merge=lfs -text
+Il2CppOutputProject/IL2CPP/build/**/*.dll     filter=lfs diff=lfs merge=lfs -text
+Il2CppOutputProject/IL2CPP/build/**/*.dylib   filter=lfs diff=lfs merge=lfs -text
